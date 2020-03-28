@@ -1,0 +1,360 @@
+#  Dr Kent G Lau
+#  kenty@kenty.com
+
+#  Finspire 2020
+
+
+version: '2'
+
+networks:
+  basic:
+
+services:
+  ca.insurerclaims.com:
+    image: hyperledger/fabric-ca:1.4.0
+    environment:
+      - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+      - FABRIC_CA_SERVER_CA_NAME=ca.insurerclaims.com
+      - FABRIC_CA_SERVER_CA_CERTFILE=/etc/hyperledger/fabric-ca-server-config/ca.insurerclaims.com-cert.pem
+      - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/cc89602f399e142534428e4b6d6eba7e73d9b4690b76c4b651d3cdbd3ad0aa7a_sk
+    ports:
+      - "7054:7054"
+    command: sh -c 'fabric-ca-server start -b admin:adminpw'
+    volumes:
+      - ./crypto-config/peerOrganizations/insurerclaims.com/ca/:/etc/hyperledger/fabric-ca-server-config
+    container_name: ca.insurerclaims.com
+    networks:
+      - basic
+
+  orderer.insurerclaims.com:
+    container_name: orderer.insurerclaims.com
+    image: hyperledger/fabric-orderer:1.4.0
+    environment:
+      - FABRIC_LOGGING_SPEC=info
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_GENESISMETHOD=file
+      - ORDERER_GENERAL_GENESISFILE=/etc/hyperledger/configtx/genesis.block
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/etc/hyperledger/msp/orderer/msp
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/orderer
+    command: orderer
+    ports:
+      - 7050:7050
+    volumes:
+        - ./config/:/etc/hyperledger/configtx
+        - ./crypto-config/ordererOrganizations/insurerclaims.com/orderers/orderer.insurerclaims.com/:/etc/hyperledger/msp/orderer
+        - ./crypto-config/peerOrganizations/insurerclaims.com/peers/peer0.insurerclaims.com/:/etc/hyperledger/msp/insurerclaims.com
+    networks:
+      - basic
+
+  peer0.insurerclaims.com:
+    container_name: peer0.insurerclaims.com
+    image: hyperledger/fabric-peer:1.4.0
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.insurerclaims.com:7051
+      - CORE_PEER_ID=peer0.insurerclaims.com
+      - FABRIC_LOGGING_SPEC=info
+      - CORE_CHAINCODE_LOGGING_LEVEL=info
+#     - CORE_VM_DOCKER_ATTACHSTDOUT=true
+      - CORE_PEER_LOCALMSPID=InsurerClaimsMSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/msp/peer/
+      - CORE_PEER_ADDRESS=peer0.insurerclaims.com:7051
+      # # the following setting starts chaincode containers on the same
+      # # bridge network as the peers
+      # # https://docs.docker.com/compose/networking/
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=${COMPOSE_PROJECT_NAME}_basic
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb.peer0.insurerclaims.com:5984
+      # The CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME and CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD
+      # provide the credentials for ledger to connect to CouchDB.  The username and password must
+      # match the username and password set for the associated CouchDB.
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+   # command: peer node start
+    command: peer node start --peer-chaincodedev=true
+    ports:
+      - 7051:7051
+      - 7052:7052
+      - 7053:7053
+    volumes:
+        - /var/run/:/host/var/run/
+        - ./crypto-config/peerOrganizations/insurerclaims.com/peers/peer0.insurerclaims.com/msp:/etc/hyperledger/msp/peer
+        - ./crypto-config/peerOrganizations/insurerclaims.com/users:/etc/hyperledger/msp/users
+        - ./config:/etc/hyperledger/configtx
+    depends_on:
+      - orderer.insurerclaims.com
+      - couchdb.peer0.insurerclaims.com
+    networks:
+      - basic
+
+  couchdb.peer0.insurerclaims.com:
+    container_name: couchdb.peer0.insurerclaims.com
+    image: hyperledger/fabric-couchdb:0.4.15
+    # Populate the COUCHDB_USER and COUCHDB_PASSWORD to set an admin user and password
+    # for CouchDB.  This will prevent CouchDB from operating in an "Admin Party" mode.
+    environment:
+      - COUCHDB_USER=
+      - COUCHDB_PASSWORD=
+    ports:
+      - 5984:5984
+    networks:
+      - basic
+
+
+  peer0.insurerfinanceofficer.com:
+    container_name: peer0.insurerfinanceofficer.com
+    image: hyperledger/fabric-peer:1.4.0
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.insurerfinanceofficer.com:9051
+      - CORE_PEER_ID=peer0.insurerfinanceofficer.com
+      - FABRIC_LOGGING_SPEC=info
+      - CORE_CHAINCODE_LOGGING_LEVEL=info
+#     - CORE_VM_DOCKER_ATTACHSTDOUT=true
+      - CORE_PEER_LOCALMSPID=InsurerFinanceOfficerMSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/msp/peer/
+      - CORE_PEER_ADDRESS=peer0.insurerfinanceofficer.com:9051
+      # # the following setting starts chaincode containers on the same
+      # # bridge network as the peers
+      # # https://docs.docker.com/compose/networking/
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=basic
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb.peer0.insurerfinanceofficer.com:5984
+      # The CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME and CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD
+      # provide the credentials for ledger to connect to CouchDB.  The username and password must
+      # match the username and password set for the associated CouchDB.
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+   # command: peer node start
+    command: peer node start --peer-chaincodedev=true
+    ports:
+      - 9051:9051
+      - 9053:7053
+    volumes:
+        - /var/run/:/host/var/run/
+        - ./crypto-config/peerOrganizations/insurerfinanceofficer.com/peers/peer0.insurerfinanceofficer.com/msp:/etc/hyperledger/msp/peer
+        - ./crypto-config/peerOrganizations/insurerfinanceofficer.com/users:/etc/hyperledger/msp/users
+        - ./config:/etc/hyperledger/configtx
+    depends_on:
+      # - orderer.insurerfinanceofficer.com
+      - couchdb.peer0.insurerfinanceofficer.com
+    networks:
+      - basic
+
+
+  couchdb.peer0.insurerfinanceofficer.com:
+    container_name: couchdb.peer0.insurerfinanceofficer.com
+    image: hyperledger/fabric-couchdb:0.4.15
+    # Populate the COUCHDB_USER and COUCHDB_PASSWORD to set an admin user and password
+    # for CouchDB.  This will prevent CouchDB from operating in an "Admin Party" mode.
+    environment:
+      - COUCHDB_USER=
+      - COUCHDB_PASSWORD=
+    ports:
+      - 9984:5984
+    networks:
+      - basic
+
+
+  peer0.policyholder.com:
+    container_name: peer0.policyholder.com
+    image: hyperledger/fabric-peer:1.4.0
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.policyholder.com:11051
+      - CORE_PEER_ID=peer0.policyholder.com
+      - FABRIC_LOGGING_SPEC=info
+      - CORE_CHAINCODE_LOGGING_LEVEL=info
+#     - CORE_VM_DOCKER_ATTACHSTDOUT=true
+      - CORE_PEER_LOCALMSPID=PolicyholderMSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/msp/peer/
+      - CORE_PEER_ADDRESS=peer0.policyholder.com:11051
+      # # the following setting starts chaincode containers on the same
+      # # bridge network as the peers
+      # # https://docs.docker.com/compose/networking/
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=basic
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb.peer0.policyholder.com:5984
+      # The CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME and CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD
+      # provide the credentials for ledger to connect to CouchDB.  The username and password must
+      # match the username and password set for the associated CouchDB.
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+   # command: peer node start
+    command: peer node start --peer-chaincodedev=true
+    ports:
+      - 11051:11051
+      - 11053:7053
+    volumes:
+        - /var/run/:/host/var/run/
+        - ./crypto-config/peerOrganizations/policyholder.com/peers/peer0.policyholder.com/msp:/etc/hyperledger/msp/peer
+        - ./crypto-config/peerOrganizations/policyholder.com/users:/etc/hyperledger/msp/users
+        - ./config:/etc/hyperledger/configtx
+    depends_on:
+      # - orderer.policyholder.com
+      - couchdb.peer0.policyholder.com
+    networks:
+      - basic
+
+
+  couchdb.peer0.policyholder.com:
+    container_name: couchdb.peer0.policyholder.com
+    image: hyperledger/fabric-couchdb:0.4.15
+    # Populate the COUCHDB_USER and COUCHDB_PASSWORD to set an admin user and password
+    # for CouchDB.  This will prevent CouchDB from operating in an "Admin Party" mode.
+    environment:
+      - COUCHDB_USER=
+      - COUCHDB_PASSWORD=
+    ports:
+      - 11984:5984
+    networks:
+      - basic
+
+
+
+
+
+
+
+  peer0.medical.com:
+    container_name: peer0.medical.com
+    image: hyperledger/fabric-peer:1.4.0
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.medical.com:7051
+      - CORE_PEER_ID=peer0.medical.com
+      - FABRIC_LOGGING_SPEC=info
+      - CORE_CHAINCODE_LOGGING_LEVEL=info
+#     - CORE_VM_DOCKER_ATTACHSTDOUT=true
+      - CORE_PEER_LOCALMSPID=MedicalMSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/msp/peer/
+      - CORE_PEER_ADDRESS=peer0.medical.com:7051
+      # # the following setting starts chaincode containers on the same
+      # # bridge network as the peers
+      # # https://docs.docker.com/compose/networking/
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=basic
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb.peer0.medical.com:5984
+      # The CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME and CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD
+      # provide the credentials for ledger to connect to CouchDB.  The username and password must
+      # match the username and password set for the associated CouchDB.
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+   # command: peer node start
+    command: peer node start --peer-chaincodedev=true
+    ports:
+      - 13051:13051
+      - 13053:7053
+    volumes:
+        - /var/run/:/host/var/run/
+        - ./crypto-config/peerOrganizations/medical.com/peers/peer0.medical.com/msp:/etc/hyperledger/msp/peer
+        - ./crypto-config/peerOrganizations/medical.com/users:/etc/hyperledger/msp/users
+        - ./config:/etc/hyperledger/configtx
+    depends_on:
+      # - orderer.medical.com
+      - couchdb.peer0.medical.com
+    networks:
+      - basic
+
+
+  couchdb.peer0.medical.com:
+    container_name: couchdb.peer0.medical.com
+    image: hyperledger/fabric-couchdb:0.4.15
+    # Populate the COUCHDB_USER and COUCHDB_PASSWORD to set an admin user and password
+    # for CouchDB.  This will prevent CouchDB from operating in an "Admin Party" mode.
+    environment:
+      - COUCHDB_USER=
+      - COUCHDB_PASSWORD=
+    ports:
+      - 13984:5984
+    networks:
+      - basic
+
+
+  peer0.investment.com:
+    container_name: peer0.investment.com
+    image: hyperledger/fabric-peer:1.4.0
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.investment.com:15051
+      - CORE_PEER_ID=peer0.investment.com
+      - FABRIC_LOGGING_SPEC=info
+      - CORE_CHAINCODE_LOGGING_LEVEL=info
+#     - CORE_VM_DOCKER_ATTACHSTDOUT=true
+      - CORE_PEER_LOCALMSPID=InvestmentMSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/msp/peer/
+      - CORE_PEER_ADDRESS=peer0.investment.com:15051
+      # # the following setting starts chaincode containers on the same
+      # # bridge network as the peers
+      # # https://docs.docker.com/compose/networking/
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=basic
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb.peer0.investment.com:5984
+      # The CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME and CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD
+      # provide the credentials for ledger to connect to CouchDB.  The username and password must
+      # match the username and password set for the associated CouchDB.
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+   # command: peer node start
+    command: peer node start --peer-chaincodedev=true
+    ports:
+      - 15051:15051
+      - 15053:7053
+    volumes:
+        - /var/run/:/host/var/run/
+        - ./crypto-config/peerOrganizations/investment.com/peers/peer0.investment.com/msp:/etc/hyperledger/msp/peer
+        - ./crypto-config/peerOrganizations/investment.com/users:/etc/hyperledger/msp/users
+        - ./config:/etc/hyperledger/configtx
+    depends_on:
+      # - orderer.investment.com
+      - couchdb.peer0.investment.com
+    networks:
+      - basic
+
+
+  couchdb.peer0.investment.com:
+    container_name: couchdb.peer0.investment.com
+    image: hyperledger/fabric-couchdb:0.4.15
+    # Populate the COUCHDB_USER and COUCHDB_PASSWORD to set an admin user and password
+    # for CouchDB.  This will prevent CouchDB from operating in an "Admin Party" mode.
+    environment:
+      - COUCHDB_USER=
+      - COUCHDB_PASSWORD=
+    ports:
+      - 15984:5984
+    networks:
+      - basic
+
+
+
+
+
+  cli:
+    container_name: cli
+    image: hyperledger/fabric-tools:1.4.0
+    tty: true
+    environment:
+      - GOPATH=/opt/gopath
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - FABRIC_LOGGING_SPEC=info
+      - CORE_PEER_ID=cli
+      - CORE_PEER_ADDRESS=peer0.insurerclaims.com:7051
+      - CORE_PEER_LOCALMSPID=InsurerClaimsMSP
+      - CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/insurerclaims.com/users/Admin@insurerclaims.com/msp
+      - CORE_CHAINCODE_KEEPALIVE=10
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: /bin/bash
+    volumes:
+        - /var/run/:/host/var/run/
+        - ./chaincode/:/opt/gopath/src/github.com/
+        - ./crypto-config:/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/
+        - ./config:/etc/hyperledger/configtx
+
+    networks:
+        - basic

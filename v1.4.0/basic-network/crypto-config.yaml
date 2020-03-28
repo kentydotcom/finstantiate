@@ -1,0 +1,60 @@
+#  Dr Kent G Lau
+#  kenty@kenty.com
+
+#  Finspire 2020
+
+
+OrdererOrgs:
+
+  - Name: Orderer
+    Domain: insurerclaims.com
+
+    Specs:
+      - Hostname: orderer
+      - Hostname: orderer2
+      - Hostname: orderer3
+      - Hostname: orderer4
+      - Hostname: orderer5
+
+
+PeerOrgs:
+
+  - Name: InsurerClaims
+    Domain: insurerclaims.com
+    EnableNodeOUs: true
+    Template:
+      Count: 2
+    Users:
+      Count: 1
+
+  - Name: InsurerFinanceOfficer
+    Domain: insurerfinanceofficer.com
+    EnableNodeOUs: true
+    Template:
+      Count: 2
+    Users:
+      Count: 1
+
+  - Name: Policyholder
+    Domain: policyholder.com
+    EnableNodeOUs: true
+    Template:
+      Count: 2
+    Users:
+      Count: 1
+
+  - Name: Medical
+    Domain: medical.com
+    EnableNodeOUs: true
+    Template:
+      Count: 2
+    Users:
+      Count: 1
+
+  - Name: Investment
+    Domain: investment.com
+    EnableNodeOUs: true
+    Template:
+      Count: 2
+    Users:
+      Count: 1
